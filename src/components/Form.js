@@ -6,14 +6,69 @@ const emptyFormFields = {
   cost: "",
   amount: "",
   intermediate_total: 0,
+  errors: {},
 };
 
 const Form = () => {
   const [formValues, setFormValues] = useState([{ ...emptyFormFields }]);
 
+  let getFormValuesToValidate = () => {
+    const lastFormValueIndex = formValues.length - 1;
+
+    // find the last row that needs to be validated in the form
+    let lastRowIndexToValidate = lastFormValueIndex;
+    for (let i = lastFormValueIndex; i > -1; i--) {
+      const formValue = formValues[i];
+      if (
+        formValue.product === "" &&
+        formValue.cost === "" &&
+        formValue.amount === ""
+      ) {
+        lastRowIndexToValidate -= 1;
+      } else {
+        break;
+      }
+    }
+
+    // when lastRowIndexToValidate === -1, the whole form is empty and the whole form must be set to a one row with nothing in it
+    // when lastRowIndexToValidate === lastFormValueIndex, the whole form is filled and the whole form must be validated
+    // when lastRowIndexToValidate > 1 AND < lastFormValueIndex, the beginning of the form must be validated and the latter of the form can be dropped
+    if (lastRowIndexToValidate === -1) return [emptyFormFields];
+    return formValues.slice(0, lastRowIndexToValidate + 1);
+  };
+
+  let validateFormValues = () => {
+    let formValuesToValidate = getFormValuesToValidate();
+    const formValuesResetErrors = formValuesToValidate.map((element) => {
+      return { ...element, errors: {} };
+    });
+    const validatedFormValues = formValuesResetErrors.map((element) => {
+      const formValue = { ...element };
+      if (formValue.product === "") formValue.errors.product = "required";
+      if (formValue.cost === "") formValue.errors.cost = "required";
+      if (formValue.amount === "") formValue.errors.amount = "required";
+      return formValue;
+    });
+    setFormValues(validatedFormValues);
+    return validatedFormValues;
+  };
+
+  let isFormValuesValid = (validatedFormValues) => {
+    const errors = [].concat(
+      ...validatedFormValues.map((e) => [
+        e.errors.product,
+        e.errors.cost,
+        e.errors.amount,
+      ])
+    );
+    return errors.every((e) => e === undefined);
+  };
+
   let handleSubmit = (e) => {
     e.preventDefault();
-    alert(JSON.stringify(formValues));
+    const validatedFormValues = validateFormValues();
+    if (!isFormValuesValid(validatedFormValues)) return;
+    alert(JSON.stringify(validatedFormValues));
   };
 
   let handleChange = (i, e) => {
@@ -23,10 +78,9 @@ const Form = () => {
   };
 
   let tryAddFormFields = () => {
-    // return if the last amount is empty OR if any of the rest of the amounts are non-empty
-    const lastAmount = formValues[formValues.length - 1].amount;
-    const restAmounts = formValues.map((element) => element.amount);
-    if (lastAmount === "" || restAmounts.includes("")) return;
+    // return if any of the amounts are empty
+    const amounts = formValues.map((element) => element.amount);
+    if (amounts.includes("")) return;
 
     addFormFields();
   };
@@ -59,25 +113,43 @@ const Form = () => {
         {formValues.map((element, index) => (
           <React.Fragment key={index}>
             <FormCell
-              ui={{ type: "text", name: "product" }}
+              ui={{
+                type: "text",
+                name: "product",
+                className: element.errors.product
+                  ? "border-2 border-rose-500"
+                  : "",
+              }}
               data={{ value: element.product, defaultValue: "" }}
-              function={{ onClick: (e) => handleChange(index, e) }}
+              functions={{ onChange: (e) => handleChange(index, e) }}
             />
             <FormCell
-              ui={{ type: "number", name: "cost" }}
+              ui={{
+                type: "number",
+                name: "cost",
+                className: element.errors.cost
+                  ? "border-2 border-rose-500"
+                  : "",
+              }}
               data={{ value: element.cost, defaultValue: "" }}
-              function={{
-                onClick: (e) => {
+              functions={{
+                onChange: (e) => {
                   handleChange(index, e);
                   updateIntermediateTotal(index);
                 },
               }}
             />
             <FormCell
-              ui={{ type: "number", name: "amount" }}
+              ui={{
+                type: "number",
+                name: "amount",
+                className: element.errors.amount
+                  ? "border-2 border-rose-500"
+                  : "",
+              }}
               data={{ value: element.amount, defaultValue: "" }}
-              function={{
-                onClick: (e) => {
+              functions={{
+                onChange: (e) => {
                   handleChange(index, e);
                   updateIntermediateTotal(index);
                   tryAddFormFields();
@@ -92,7 +164,7 @@ const Form = () => {
                 isDisabled: true,
               }}
               data={{ value: element.intermediate_total, defaultValue: 0 }}
-              function={{ onClick: (e) => handleChange(index, e) }}
+              functions={{ onChange: (e) => handleChange(index, e) }}
             />
             <div className="border-2 text-center">
               {index ? (
@@ -100,7 +172,7 @@ const Form = () => {
                   className="bg-rose-300 hover:bg-rose-400 text-gray-800 my-1 py-1 px-2 rounded-full inline-flex items-center"
                   type="button"
                   onClick={() => removeFormFields(index)}
-                  tabindex="-1"
+                  tabIndex="-1"
                 >
                   <TrashIcon className="h-4 w-4" />
                 </button>
@@ -137,15 +209,16 @@ const FormHeader = (props) => {
 };
 
 const FormCell = (props) => {
+  const { ui, data, functions } = { ...props };
   return (
     <div className="border-2">
       <input
-        className={`w-full h-full ${props.ui.className}`}
-        type={props.ui.type}
-        name={props.ui.name}
-        value={props.data.value || props.data.defaultValue}
-        onChange={props.function.onClick}
-        disabled={props.ui.isDisabled}
+        className={`w-full h-full ${ui.className}`}
+        type={ui.type}
+        name={ui.name}
+        value={data.value || data.defaultValue}
+        onChange={functions.onChange}
+        disabled={ui.isDisabled}
       />
     </div>
   );
